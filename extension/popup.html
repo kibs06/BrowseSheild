@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BrowseShield</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="popup-header">
+        <div>
+          <span class="eyebrow">Extension Scan</span>
+          <h1>BrowseShield</h1>
+        </div>
+        <div class="status-chip">Live</div>
+      </header>
+
+      <section class="scan-card">
+        <div class="scan-topline">
+          <span class="label">Current Site</span>
+          <span id="risk-pill" class="risk-pill tone-low">Waiting</span>
+        </div>
+        <h2 id="site-url">Open a tab and run a scan</h2>
+        <p id="warning-text" class="warning-text">
+          BrowseShield will inspect the active page and classify its risk level.
+        </p>
+        <div class="meta-row">
+          <span id="category-pill" class="meta-pill">No category yet</span>
+          <span id="trust-pill" class="meta-pill">Not trusted</span>
+        </div>
+      </section>
+
+      <section class="scan-card compact">
+        <div class="scan-topline">
+          <span class="label">Indicators</span>
+          <span id="score-pill" class="score-pill">0 / 100</span>
+        </div>
+        <ul id="indicator-list" class="indicator-list">
+          <li>No indicators yet</li>
+        </ul>
+      </section>
+
+      <section class="action-grid">
+        <button id="scan-button" class="primary-button">Scan Active Page</button>
+        <button id="view-report-button" class="secondary-button">View Full Report</button>
+        <button id="leave-button" class="danger-button">Leave Site</button>
+        <button id="trust-button" class="secondary-button">Trust Site</button>
+        <button id="continue-button" class="secondary-button">Continue Anyway</button>
+        <button id="dashboard-button" class="secondary-button">Open Dashboard</button>
+      </section>
+
+      <p id="footer-note" class="footer-note">
+        Automatic scans run on active websites and save to Supabase when extension/config.js is configured.
+      </p>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+  </html>

@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "BrowseShield",
+  "version": "0.2.0",
+  "description": "Browser threat monitoring with live risk detection, warning flows, and dashboard reporting.",
+  "minimum_chrome_version": "114",
+  "icons": {
+    "128": "icons/risk-medium.png"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "tabs", "webNavigation"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_icon": {
+      "128": "icons/risk-medium.png"
+    },
+    "default_title": "BrowseShield",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "css": ["content/notificationStyles.css"],
+      "js": ["content/dangerModal.js", "content/overlay.js", "content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

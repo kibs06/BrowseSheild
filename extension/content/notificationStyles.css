@@ -1,0 +1,457 @@
+:root {
+  --bs-overlay-bg: rgba(7, 17, 31, 0.9);
+  --bs-overlay-panel: rgba(12, 24, 40, 0.92);
+  --bs-overlay-border: rgba(148, 163, 184, 0.16);
+  --bs-overlay-text: #e6f1ff;
+  --bs-overlay-muted: #94a3b8;
+  --bs-overlay-cyan: #00d1ff;
+  --bs-overlay-green: #22c55e;
+  --bs-overlay-amber: #f59e0b;
+  --bs-overlay-red: #ef4444;
+  --bs-overlay-shadow: 0 24px 60px rgba(2, 8, 23, 0.45);
+}
+
+#browseshield-overlay-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  pointer-events: none;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: var(--bs-overlay-text);
+}
+
+#browseshield-overlay-root * {
+  box-sizing: border-box;
+}
+
+.browseshield-toast-layer {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  width: min(360px, calc(100vw - 28px));
+  pointer-events: none;
+}
+
+.browseshield-toast {
+  width: 100%;
+  border-radius: 22px;
+  border: 1px solid var(--bs-overlay-border);
+  background:
+    radial-gradient(circle at top left, rgba(0, 209, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(7, 17, 31, 0.98), rgba(4, 10, 19, 0.95));
+  box-shadow: var(--bs-overlay-shadow);
+  backdrop-filter: blur(18px);
+  padding: 16px 16px 14px;
+  opacity: 0;
+  transform: translateY(-14px) scale(0.98);
+  transition: opacity 220ms ease, transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  pointer-events: auto;
+}
+
+.browseshield-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.browseshield-toast[data-tone='scanning'] {
+  border-color: rgba(0, 209, 255, 0.28);
+}
+
+.browseshield-toast[data-tone='safe'] {
+  border-color: rgba(34, 197, 94, 0.3);
+  box-shadow: 0 20px 55px rgba(15, 118, 52, 0.18);
+}
+
+.browseshield-toast[data-tone='suspicious'] {
+  border-color: rgba(245, 158, 11, 0.38);
+  box-shadow: 0 20px 55px rgba(180, 83, 9, 0.22);
+}
+
+.browseshield-toast-header,
+.browseshield-toast-meta,
+.browseshield-toast-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.browseshield-toast-header {
+  margin-bottom: 10px;
+}
+
+.browseshield-toast-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.browseshield-toast-icon-slot {
+  min-width: 36px;
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+}
+
+.browseshield-toast-copy {
+  min-width: 0;
+}
+
+.browseshield-eyebrow {
+  color: var(--bs-overlay-cyan);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.browseshield-pill {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  border: 1px solid rgba(0, 209, 255, 0.24);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.browseshield-toast[data-tone='safe'] .browseshield-pill {
+  color: var(--bs-overlay-green);
+  border-color: rgba(34, 197, 94, 0.32);
+}
+
+.browseshield-toast[data-tone='suspicious'] .browseshield-pill {
+  color: var(--bs-overlay-amber);
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+.browseshield-toast[data-tone='scanning'] .browseshield-pill {
+  color: var(--bs-overlay-cyan);
+}
+
+.browseshield-toast-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.browseshield-toast-body {
+  margin: 8px 0 0;
+  color: var(--bs-overlay-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.browseshield-toast-meta {
+  margin-top: 12px;
+}
+
+.browseshield-toast-site {
+  min-width: 0;
+}
+
+.browseshield-toast-site-label {
+  display: block;
+  color: var(--bs-overlay-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+.browseshield-toast-site-value {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.browseshield-score {
+  display: grid;
+  place-items: center;
+  min-width: 72px;
+  min-height: 72px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  text-align: center;
+}
+
+.browseshield-score strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.browseshield-score span {
+  margin-top: 4px;
+  color: var(--bs-overlay-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.browseshield-indicator-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.browseshield-indicator-list li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--bs-overlay-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.browseshield-indicator-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.browseshield-toast-actions {
+  margin-top: 14px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.browseshield-button {
+  pointer-events: auto;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--bs-overlay-text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, opacity 150ms ease;
+}
+
+.browseshield-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.browseshield-button:disabled {
+  opacity: 0.52;
+  cursor: wait;
+}
+
+.browseshield-button[data-variant='primary'] {
+  border-color: rgba(0, 209, 255, 0.28);
+  background: linear-gradient(135deg, rgba(0, 209, 255, 0.18), rgba(59, 130, 246, 0.3));
+}
+
+.browseshield-button[data-variant='warning'] {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.24));
+}
+
+.browseshield-button[data-variant='danger'] {
+  border-color: rgba(239, 68, 68, 0.32);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(190, 24, 93, 0.28));
+}
+
+.browseshield-scanning-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.browseshield-status-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 700;
+  border: 1px solid rgba(245, 158, 11, 0.34);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--bs-overlay-amber);
+}
+
+.browseshield-status-chip[data-tone='danger'] {
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--bs-overlay-red);
+}
+
+.browseshield-scanner-pulse {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--bs-overlay-cyan);
+  box-shadow: 0 0 0 rgba(0, 209, 255, 0.45);
+  animation: browseshield-pulse 1.4s ease-in-out infinite;
+}
+
+.browseshield-safe-check {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--bs-overlay-green);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.browseshield-toast.is-hidden {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.98);
+  pointer-events: none;
+}
+
+.browseshield-danger-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(239, 68, 68, 0.16), transparent 30%),
+    rgba(3, 7, 18, 0.74);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.browseshield-danger-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.browseshield-danger-panel {
+  width: min(680px, 100%);
+  border-radius: 28px;
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  background:
+    radial-gradient(circle at top left, rgba(239, 68, 68, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(10, 16, 28, 0.98), rgba(4, 10, 19, 0.98));
+  box-shadow: 0 28px 80px rgba(2, 8, 23, 0.62);
+  padding: 24px;
+  transform: translateY(12px) scale(0.98);
+  transition: transform 220ms ease;
+}
+
+.browseshield-danger-backdrop.is-visible .browseshield-danger-panel {
+  transform: translateY(0) scale(1);
+}
+
+.browseshield-danger-header,
+.browseshield-danger-meta,
+.browseshield-danger-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.browseshield-danger-header {
+  margin-bottom: 12px;
+}
+
+.browseshield-danger-title {
+  margin: 10px 0 0;
+  font-size: clamp(28px, 4vw, 38px);
+  line-height: 1.02;
+}
+
+.browseshield-danger-copy {
+  margin: 12px 0 0;
+  color: var(--bs-overlay-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.browseshield-danger-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.browseshield-danger-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.browseshield-danger-chip {
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: var(--bs-overlay-red);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.browseshield-danger-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.browseshield-danger-footnote {
+  margin-top: 10px;
+  color: var(--bs-overlay-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@keyframes browseshield-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 209, 255, 0.42);
+  }
+
+  70% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 12px rgba(0, 209, 255, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 209, 255, 0);
+  }
+}
+
+@media (max-width: 640px) {
+  .browseshield-toast-layer {
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+
+  .browseshield-danger-backdrop {
+    align-items: flex-end;
+    padding: 14px;
+  }
+
+  .browseshield-danger-panel {
+    border-radius: 24px 24px 18px 18px;
+    padding: 20px 18px;
+  }
+
+  .browseshield-danger-grid {
+    grid-template-columns: 1fr;
+  }
+}
