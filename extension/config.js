@@ -1,8 +1,8 @@
 // Switch to "production" before packaging the Chrome Web Store build.
-const EXTENSION_APP_ENV = 'development';
+const EXTENSION_APP_ENV = 'production';
 const DEVELOPMENT_APP_BASE_URL = 'http://localhost:5173';
-// Replace this with your deployed Vercel URL before publishing the extension.
-const PRODUCTION_APP_BASE_URL = 'https://your-vercel-domain.vercel.app';
+// Replace this with your final custom domain when it is ready.
+const PRODUCTION_APP_BASE_URL = 'https://project-g7nc2.vercel.app';
 
 function normalizeBaseUrl(url = '') {
   return String(url).trim().replace(/\/+$/, '');
