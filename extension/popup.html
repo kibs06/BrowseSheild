@@ -13,8 +13,29 @@
           <span class="eyebrow">Extension Scan</span>
           <h1>BrowseShield</h1>
         </div>
-        <div class="status-chip">Live</div>
+        <div id="status-chip" class="status-chip">Shielding Active</div>
       </header>
+
+      <section class="scan-card protection-card">
+        <div class="scan-topline">
+          <span class="label">Protection State</span>
+          <span id="protection-pill" class="meta-pill is-trusted">Shielding Active</span>
+        </div>
+        <div class="protection-row">
+          <div>
+            <h2 id="protection-heading">Shielding Active</h2>
+            <p id="protection-message" class="warning-text">
+              BrowseShield is monitoring pages automatically and will show warnings when suspicious behavior is detected.
+            </p>
+          </div>
+          <label class="toggle-shell" for="protection-toggle">
+            <input id="protection-toggle" type="checkbox" checked />
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </div>
+      </section>
 
       <section class="scan-card">
         <div class="scan-topline">

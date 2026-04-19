@@ -13,6 +13,17 @@ import {
   recordScanAction,
   updateScanResult,
 } from './utils/supabase.js';
+import {
+  getProtectionEnabled,
+  initializeProtectionState,
+  setProtectionEnabled,
+  shouldRunProtection,
+} from './utils/protectionState.js';
+import {
+  clearBadgeForTab,
+  clearBadgesForTabs,
+  updateBadgeForScan,
+} from './utils/badgeState.js';
 
 const DEBUG_SCAN_LOGS = false;
 const ignoredAutoScanHosts = getIgnoredAutoScanHosts();
@@ -124,6 +135,37 @@ function extractHostname(url) {
   }
 }
 
+function clearPendingAutoScans() {
+  pendingAutoScans.forEach((timerId) => clearTimeout(timerId));
+  pendingAutoScans.clear();
+}
+
+async function hideProtectionUiAcrossTabs() {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(
+    tabs
+      .filter((tab) => tab.id && isScannableUrl(tab.url || ''))
+      .map((tab) =>
+        sendOverlayMessage(tab.id, { view: 'hide' }).catch(() => null),
+      ),
+  );
+
+  await clearBadgesForTabs(tabs.map((tab) => tab.id)).catch(() => null);
+}
+
+async function updateProtectionState(enabled) {
+  const nextState = await setProtectionEnabled(enabled);
+
+  if (!nextState) {
+    clearPendingAutoScans();
+    await hideProtectionUiAcrossTabs().catch(() => null);
+  } else {
+    scanCurrentActiveTab('protection_resumed');
+  }
+
+  return nextState;
+}
+
 function isScannableUrl(url = '') {
   return /^https?:\/\//i.test(url);
 }
@@ -212,6 +254,20 @@ function getOverlayViewForRisk(scan) {
   return 'danger';
 }
 
+function shouldDisplayOverlayForScan(scan, trigger = 'manual') {
+  const overlayView = getOverlayViewForRisk(scan);
+
+  if (overlayView === 'danger') {
+    return true;
+  }
+
+  if (overlayView === 'suspicious') {
+    return trigger === 'manual';
+  }
+
+  return false;
+}
+
 async function sendOverlayMessage(tabId, payload) {
   if (!tabId) {
     return {
@@ -242,7 +298,7 @@ async function sendOverlayMessage(tabId, payload) {
 }
 
 async function showScanningOverlay(tab) {
-  if (!tab?.id || shouldIgnoreAutoScanUrl(tab.url)) {
+  if (!tab?.id || shouldIgnoreAutoScanUrl(tab.url) || !(await shouldRunProtection())) {
     return;
   }
 
@@ -252,34 +308,43 @@ async function showScanningOverlay(tab) {
   }).catch(() => null);
 }
 
-async function showResultOverlay(tabId, scan) {
+async function showResultOverlay(tabId, scan, { trigger = 'manual' } = {}) {
+  if (!(await shouldRunProtection())) {
+    return;
+  }
+
+  if (!shouldDisplayOverlayForScan(scan, trigger)) {
+    await sendOverlayMessage(tabId, { view: 'hide' }).catch(() => null);
+    return;
+  }
+
   await sendOverlayMessage(tabId, {
     view: getOverlayViewForRisk(scan),
     scan,
   }).catch(() => null);
 }
 
-function getLifecycleActionTypes(scan) {
+function getLifecycleActionTypes(scan, { trigger = 'manual' } = {}) {
   const actionTypes = ['scanned'];
   const overlayView = getOverlayViewForRisk(scan);
 
-  if (overlayView === 'safe') {
-    actionTypes.push('safe_notified');
-  } else if (overlayView === 'suspicious') {
+  if (overlayView === 'suspicious' && trigger === 'manual') {
     actionTypes.push('suspicious_notified');
   } else {
-    actionTypes.push('danger_blocked');
+    if (overlayView === 'danger') {
+      actionTypes.push('danger_blocked');
+    }
   }
 
   return actionTypes;
 }
 
-async function syncLifecycleActions(scan) {
+async function syncLifecycleActions(scan, options = {}) {
   if (!scan?.recordId) {
     return;
   }
 
-  for (const actionType of getLifecycleActionTypes(scan)) {
+  for (const actionType of getLifecycleActionTypes(scan, options)) {
     await syncScanAction(scan.recordId, actionType, {
       pageUrl: scan.url,
       updateUserAction: false,
@@ -478,7 +543,7 @@ async function scanTab(tab, { notify = false, trigger = 'manual', force = false,
     };
   }
 
-  if (notify) {
+  if (notify && trigger === 'manual') {
     await showScanningOverlay(tab);
   }
 
@@ -535,11 +600,12 @@ async function scanTab(tab, { notify = false, trigger = 'manual', force = false,
     });
   }
 
+  const overlayShown = shouldDisplayOverlayForScan(scan, trigger);
   const storedScan = {
     ...scan,
     currentTabId: tab.id,
     lastScannedAt: Date.now(),
-    notificationShown: Boolean(notify),
+    notificationShown: overlayShown,
     pageSessionKey: decision.normalizedUrl || normalizeScanUrl(tab.url),
     trustedSite: trustedSite || null,
     persisted: persistence.ok,
@@ -547,14 +613,16 @@ async function scanTab(tab, { notify = false, trigger = 'manual', force = false,
     recordId: persistence.id || null,
   };
 
+  await updateBadgeForScan(tab.id, storedScan).catch(() => null);
+
   if (persistence.ok) {
-    await syncLifecycleActions(storedScan);
+    await syncLifecycleActions(storedScan, { trigger });
   }
 
   await saveLastScan(storedScan);
 
   if (notify) {
-    await showResultOverlay(tab.id, storedScan);
+    await showResultOverlay(tab.id, storedScan, { trigger });
   }
 
   return {
@@ -565,12 +633,18 @@ async function scanTab(tab, { notify = false, trigger = 'manual', force = false,
 }
 
 async function scanActiveTab() {
+  const protectionEnabled = await getProtectionEnabled();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return scanTab(tab, { notify: true, trigger: 'manual', force: true, manualRescan: true });
+  return scanTab(tab, {
+    notify: protectionEnabled,
+    trigger: 'manual',
+    force: true,
+    manualRescan: true,
+  });
 }
 
 async function runAutomaticScanForTab(tab) {
-  if (!tab?.active || shouldIgnoreAutoScanUrl(tab.url)) {
+  if (!tab?.active || shouldIgnoreAutoScanUrl(tab.url) || !(await shouldRunProtection())) {
     return;
   }
 
@@ -586,8 +660,12 @@ async function runAutomaticScanForTab(tab) {
   }
 }
 
-function queueAutomaticScan(tabId, reason = 'event') {
+async function queueAutomaticScan(tabId, reason = 'event') {
   if (!tabId) {
+    return;
+  }
+
+  if (!(await shouldRunProtection())) {
     return;
   }
 
@@ -600,6 +678,10 @@ function queueAutomaticScan(tabId, reason = 'event') {
     pendingAutoScans.delete(tabId);
 
     try {
+      if (!(await shouldRunProtection())) {
+        return;
+      }
+
       const tab = await chrome.tabs.get(tabId);
       if (!tab?.active || tab.status !== 'complete') {
         return;
@@ -624,6 +706,10 @@ function queueAutomaticScan(tabId, reason = 'event') {
 
 async function scanCurrentActiveTab(reason = 'startup') {
   try {
+    if (!(await shouldRunProtection())) {
+      return;
+    }
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
       return;
@@ -764,18 +850,23 @@ async function handleViewReport(tabId) {
 
 chrome.runtime.onInstalled.addListener(async () => {
   scanStateByTab.clear();
-  pendingAutoScans.clear();
+  clearPendingAutoScans();
+  await initializeProtectionState();
   await scanCurrentActiveTab('installed');
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  pendingAutoScans.clear();
-  scanCurrentActiveTab('startup');
+  clearPendingAutoScans();
+  initializeProtectionState().then(() => scanCurrentActiveTab('startup'));
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' && !changeInfo.url) {
     return;
+  }
+
+  if (changeInfo.url) {
+    clearBadgeForTab(tabId).catch(() => null);
   }
 
   queueAutomaticScan(tabId, changeInfo.status === 'complete' ? 'tab_complete' : 'url_changed');
@@ -787,6 +878,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   scanStateByTab.delete(tabId);
+  clearBadgeForTab(tabId).catch(() => null);
   const pendingTimer = pendingAutoScans.get(tabId);
   if (pendingTimer) {
     clearTimeout(pendingTimer);
@@ -851,12 +943,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === 'GET_LAST_SCAN') {
-    getLastScan()
-      .then((scan) => sendResponse({ ok: true, scan }))
+    Promise.all([getLastScan(), getProtectionEnabled()])
+      .then(([scan, protectionEnabled]) => sendResponse({ ok: true, scan, protectionEnabled }))
       .catch((error) =>
         sendResponse({
           ok: false,
           error: error.message || 'Unable to load the latest scan.',
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === 'GET_PROTECTION_STATE') {
+    getProtectionEnabled()
+      .then((protectionEnabled) => sendResponse({ ok: true, protectionEnabled }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error.message || 'Unable to load the protection state.',
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === 'SET_PROTECTION_STATE') {
+    updateProtectionState(message.enabled)
+      .then((protectionEnabled) =>
+        sendResponse({
+          ok: true,
+          protectionEnabled,
+          notice: protectionEnabled
+            ? 'Shielding Active. Automatic scans and warnings are enabled.'
+            : 'Shielding Paused. Automatic scans and warnings are disabled.',
+        }),
+      )
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error.message || 'Unable to update the protection state.',
         }),
       );
     return true;

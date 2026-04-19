@@ -46,6 +46,19 @@ const overlayController =
     onAction: handleOverlayAction,
   }) ?? null;
 
+function getProtectionEnabled() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['browseShieldEnabled'], (result) => {
+      if (chrome.runtime.lastError) {
+        resolve(true);
+        return;
+      }
+
+      resolve(typeof result?.browseShieldEnabled === 'boolean' ? result.browseShieldEnabled : true);
+    });
+  });
+}
+
 function sendRuntimeMessage(message) {
   return new Promise((resolve) => {
     chrome.runtime.sendMessage(message, (response) => {
@@ -148,9 +161,14 @@ async function handleOverlayAction(actionId) {
   }
 }
 
-function handleOverlayMessage(message) {
+async function handleOverlayMessage(message) {
   if (!overlayController) {
     return { ok: false, error: 'Overlay controller is unavailable on this page.' };
+  }
+
+  if (message?.view !== 'hide' && !(await getProtectionEnabled())) {
+    overlayController.hideAll();
+    return { ok: false, skipped: true, reason: 'BrowseShield protection is paused.' };
   }
 
   switch (message?.view) {
@@ -193,6 +211,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === 'BROWSERSHIELD_OVERLAY') {
-    sendResponse(handleOverlayMessage(message));
+    handleOverlayMessage(message).then(sendResponse);
+    return true;
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local' || !('browseShieldEnabled' in changes)) {
+    return;
+  }
+
+  if (changes.browseShieldEnabled.newValue === false) {
+    overlayController?.hideAll();
   }
 });

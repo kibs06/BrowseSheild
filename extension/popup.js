@@ -12,6 +12,11 @@ const leaveButton = document.getElementById('leave-button');
 const trustButton = document.getElementById('trust-button');
 const continueButton = document.getElementById('continue-button');
 const dashboardButton = document.getElementById('dashboard-button');
+const statusChip = document.getElementById('status-chip');
+const protectionPill = document.getElementById('protection-pill');
+const protectionHeading = document.getElementById('protection-heading');
+const protectionMessage = document.getElementById('protection-message');
+const protectionToggle = document.getElementById('protection-toggle');
 
 const actionButtons = [scanButton, viewReportButton, leaveButton, trustButton, continueButton, dashboardButton];
 const actionSuccessMessages = {
@@ -20,11 +25,13 @@ const actionSuccessMessages = {
   TRUST_SITE: 'Site marked as trusted.',
   CONTINUE_ANYWAY: 'Marked this scan as "Continue Anyway".',
 };
+let protectionEnabled = true;
 
 function setButtonState(disabled) {
   actionButtons.forEach((button) => {
     button.disabled = disabled;
   });
+  protectionToggle.disabled = disabled;
 }
 
 function setFooterMessage(message) {
@@ -40,6 +47,20 @@ function renderIndicators(indicators) {
     item.textContent = indicator;
     indicatorList.appendChild(item);
   });
+}
+
+function renderProtectionState(enabled) {
+  protectionEnabled = enabled;
+  protectionToggle.checked = enabled;
+  statusChip.textContent = enabled ? 'Shielding Active' : 'Shielding Paused';
+  statusChip.className = `status-chip ${enabled ? '' : 'is-paused'}`.trim();
+  protectionPill.textContent = enabled ? 'Shielding Active' : 'Shielding Paused';
+  protectionPill.className = `meta-pill ${enabled ? 'is-trusted' : 'is-paused'}`.trim();
+  protectionHeading.textContent = enabled ? 'Shielding Active' : 'Shielding Paused';
+  protectionMessage.textContent = enabled
+    ? 'BrowseShield is monitoring pages automatically and will show warnings when suspicious behavior is detected.'
+    : 'BrowseShield is currently paused. Automatic scans and warnings are disabled, but you can still run a manual scan from this popup.';
+  scanButton.textContent = enabled ? 'Scan Active Page' : 'Run Manual Scan';
 }
 
 function renderScan(scan, persistence) {
@@ -90,6 +111,10 @@ function renderActionError(message) {
 
 async function requestLastScan() {
   const response = await chrome.runtime.sendMessage({ type: 'GET_LAST_SCAN' });
+  if (typeof response?.protectionEnabled === 'boolean') {
+    renderProtectionState(response.protectionEnabled);
+  }
+
   if (response?.ok && response.scan) {
     renderScan(response.scan, {
       ok: Boolean(response.scan.persisted),
@@ -99,9 +124,16 @@ async function requestLastScan() {
   }
 }
 
+async function requestProtectionState() {
+  const response = await chrome.runtime.sendMessage({ type: 'GET_PROTECTION_STATE' });
+  if (response?.ok && typeof response.protectionEnabled === 'boolean') {
+    renderProtectionState(response.protectionEnabled);
+  }
+}
+
 async function runScan() {
   setButtonState(true);
-  scanButton.textContent = 'Scanning...';
+  scanButton.textContent = protectionEnabled ? 'Scanning...' : 'Running Manual Scan...';
 
   try {
     const response = await chrome.runtime.sendMessage({ type: 'RUN_ACTIVE_SCAN' });
@@ -116,7 +148,7 @@ async function runScan() {
     renderError(error.message || 'BrowseShield could not scan the active tab.');
   } finally {
     setButtonState(false);
-    scanButton.textContent = 'Scan Active Page';
+    renderProtectionState(protectionEnabled);
   }
 }
 
@@ -150,11 +182,36 @@ async function performAction(type) {
   }
 }
 
+async function handleProtectionToggle(event) {
+  const nextEnabled = event.target.checked;
+  setButtonState(true);
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'SET_PROTECTION_STATE',
+      enabled: nextEnabled,
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || 'BrowseShield could not update protection state.');
+    }
+
+    renderProtectionState(response.protectionEnabled);
+    setFooterMessage(response.notice || 'Protection state updated.');
+  } catch (error) {
+    renderProtectionState(protectionEnabled);
+    renderActionError(error.message || 'BrowseShield could not update protection state.');
+  } finally {
+    setButtonState(false);
+  }
+}
+
 scanButton.addEventListener('click', runScan);
 viewReportButton.addEventListener('click', () => performAction('VIEW_REPORT'));
 leaveButton.addEventListener('click', () => performAction('LEAVE_SITE'));
 trustButton.addEventListener('click', () => performAction('TRUST_SITE'));
 continueButton.addEventListener('click', () => performAction('CONTINUE_ANYWAY'));
+protectionToggle.addEventListener('change', handleProtectionToggle);
 dashboardButton.addEventListener('click', () => {
   setFooterMessage('Opening the BrowseShield dashboard.');
   chrome.runtime.sendMessage({ type: 'OPEN_DASHBOARD' }).catch((error) => {
@@ -162,4 +219,6 @@ dashboardButton.addEventListener('click', () => {
   });
 });
 
+renderProtectionState(true);
+requestProtectionState();
 requestLastScan();
