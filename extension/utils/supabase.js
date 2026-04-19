@@ -124,8 +124,8 @@ function getActionTypeCandidates(actionType) {
     trusted_site: ['trusted_site'],
     left_site: ['left_site'],
     warned: ['warned'],
-    scanned: ['scanned'],
-    safe_notified: ['safe_notified'],
+    scanned: ['scanned', 'warned'],
+    safe_notified: ['safe_notified', 'warned'],
   };
 
   return fallbacks[actionType] ?? [actionType];

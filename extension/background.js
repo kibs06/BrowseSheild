@@ -18,6 +18,8 @@ const DEBUG_SCAN_LOGS = false;
 const ignoredAutoScanHosts = getIgnoredAutoScanHosts();
 const scanStateByTab = new Map();
 const trustedSiteCache = new Map();
+const pendingAutoScans = new Map();
+const AUTO_SCAN_DELAY_MS = 650;
 
 function extractErrorMessage(error, fallback) {
   const message = typeof error?.message === 'string' ? error.message.trim() : '';
@@ -521,6 +523,18 @@ async function scanTab(tab, { notify = false, trigger = 'manual', force = false,
     };
   }
 
+  if (persistence?.ok) {
+    console.info('BrowseShield scan persisted to Supabase.', {
+      url: scan.url,
+      recordId: persistence.id,
+    });
+  } else if (persistence?.reason || persistence?.error) {
+    console.warn('BrowseShield scan did not persist to Supabase.', {
+      url: scan.url,
+      reason: persistence.reason || persistence.error,
+    });
+  }
+
   const storedScan = {
     ...scan,
     currentTabId: tab.id,
@@ -569,6 +583,55 @@ async function runAutomaticScanForTab(tab) {
     if (!isIgnorableScanError(error)) {
       console.error('BrowseShield automatic scan failed:', error);
     }
+  }
+}
+
+function queueAutomaticScan(tabId, reason = 'event') {
+  if (!tabId) {
+    return;
+  }
+
+  const existingTimer = pendingAutoScans.get(tabId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const timerId = setTimeout(async () => {
+    pendingAutoScans.delete(tabId);
+
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab?.active || tab.status !== 'complete') {
+        return;
+      }
+
+      debugScanLog('Queued automatic scan fired', {
+        tabId,
+        url: tab.url,
+        reason,
+      });
+
+      await runAutomaticScanForTab(tab);
+    } catch (error) {
+      if (!isIgnorableScanError(error)) {
+        console.error('BrowseShield queued automatic scan failed:', error);
+      }
+    }
+  }, AUTO_SCAN_DELAY_MS);
+
+  pendingAutoScans.set(tabId, timerId);
+}
+
+async function scanCurrentActiveTab(reason = 'startup') {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      return;
+    }
+
+    queueAutomaticScan(tab.id, reason);
+  } catch (error) {
+    console.error('BrowseShield active-tab auto scan bootstrap failed:', error);
   }
 }
 
@@ -701,29 +764,34 @@ async function handleViewReport(tabId) {
 
 chrome.runtime.onInstalled.addListener(async () => {
   scanStateByTab.clear();
+  pendingAutoScans.clear();
+  await scanCurrentActiveTab('installed');
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  pendingAutoScans.clear();
+  scanCurrentActiveTab('startup');
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete') {
+  if (changeInfo.status !== 'complete' && !changeInfo.url) {
     return;
   }
 
-  runAutomaticScanForTab(tab);
+  queueAutomaticScan(tabId, changeInfo.status === 'complete' ? 'tab_complete' : 'url_changed');
 });
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (tab?.status === 'complete') {
-      await runAutomaticScanForTab(tab);
-    }
-  } catch (error) {
-    console.error('BrowseShield activation scan failed:', error);
-  }
+  queueAutomaticScan(tabId, 'tab_activated');
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   scanStateByTab.delete(tabId);
+  const pendingTimer = pendingAutoScans.get(tabId);
+  if (pendingTimer) {
+    clearTimeout(pendingTimer);
+    pendingAutoScans.delete(tabId);
+  }
   const existing = await chrome.storage.local.get(['lastScansByTab']);
   const lastScansByTab = existing.lastScansByTab || {};
   if (!(tabId in lastScansByTab)) {
@@ -735,14 +803,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 });
 
 async function handleNavigationAutoScan(tabId) {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (tab?.status === 'complete') {
-      await runAutomaticScanForTab(tab);
-    }
-  } catch (error) {
-    console.error('BrowseShield webNavigation scan failed:', error);
-  }
+  queueAutomaticScan(tabId, 'navigation');
 }
 
 chrome.webNavigation.onCommitted.addListener(({ tabId, frameId }) => {
